@@ -1,0 +1,78 @@
+[
+    {
+        "domain": "zh.z-lib.gd",
+        "hostOnly": true,
+        "httpOnly": false,
+        "name": "bsrv",
+        "path": "/",
+        "sameSite": null,
+        "secure": false,
+        "session": true,
+        "storeId": null,
+        "value": "888b1cb6c55ec88c6fbb71b81e398683"
+    },
+    {
+        "domain": ".z-lib.gd",
+        "expirationDate": 1789661259.957899,
+        "hostOnly": false,
+        "httpOnly": false,
+        "name": "selectedSiteMode",
+        "path": "/",
+        "sameSite": "no_restriction",
+        "secure": true,
+        "session": false,
+        "storeId": null,
+        "value": "books"
+    },
+    {
+        "domain": "zh.z-lib.gd",
+        "hostOnly": true,
+        "httpOnly": false,
+        "name": "c_token",
+        "path": "/",
+        "sameSite": null,
+        "secure": false,
+        "session": true,
+        "storeId": null,
+        "value": "0CA63F097471738252734E77B911BA6099818CAA1586"
+    },
+    {
+        "domain": ".z-lib.gd",
+        "expirationDate": 1790582860.268131,
+        "hostOnly": false,
+        "httpOnly": false,
+        "name": "remix_userkey",
+        "path": "/",
+        "sameSite": "no_restriction",
+        "secure": true,
+        "session": false,
+        "storeId": null,
+        "value": "e40fa48c0202ce8b4c436fcaf07140f4"
+    },
+    {
+        "domain": ".z-lib.gd",
+        "expirationDate": 1790582860.268362,
+        "hostOnly": false,
+        "httpOnly": false,
+        "name": "remix_userid",
+        "path": "/",
+        "sameSite": "no_restriction",
+        "secure": true,
+        "session": false,
+        "storeId": null,
+        "value": "35784588"
+    },
+    {
+        "domain": ".z-lib.gd",
+        "expirationDate": 1821343857.96046,
+        "hostOnly": false,
+        "httpOnly": false,
+        "name": "siteLanguage",
+        "path": "/",
+        "sameSite": "no_restriction",
+        "secure": true,
+        "session": false,
+        "storeId": null,
+        "value": "zh"
+    }
+]
