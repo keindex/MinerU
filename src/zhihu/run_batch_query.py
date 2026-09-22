@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from zhihu_batch_query import ZhihuBatchQuery
 
 
-def load_config(config_path: str = "zhihu_config.json") -> dict:
+def load_config(config_path: str = "C:\\Users\\yangj\\dev\\MinerU\\src\\zhihu\\zhihu_config.json") -> dict:
     """加载配置文件"""
     try:
         with open(config_path, 'r', encoding='utf-8') as f:

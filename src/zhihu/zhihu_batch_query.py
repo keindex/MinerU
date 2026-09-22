@@ -26,6 +26,7 @@ class ZhihuBatchQuery:
         self.base_url = f"https://www.zhihu.com/api/v3/moments/{user_id}/activities"
         
         # 基础请求头（需要根据实际情况更新 cookie 和签名）
+        # 注意：不发送 accept-encoding 头，避免服务端返回 Brotli 压缩（requests 不支持）
         self.headers = {
             'pragma': 'no-cache',
             'cache-control': 'no-cache',
@@ -41,11 +42,10 @@ class ZhihuBatchQuery:
             'sec-fetch-mode': 'cors',
             'sec-fetch-dest': 'empty',
             'referer': f'https://www.zhihu.com/people/{user_id}',
-            'accept-encoding': 'gzip, deflate, br, zstd',
             'accept-language': 'zh-CN,zh;q=0.9',
             'priority': 'u=1, i',
             # 注意：cookie 和 x-zse-96/x-zst-81 需要从浏览器获取最新值
-            'cookie': '',  # 请填入你的 cookie
+            'cookie': 'z_c0=2|1:0|10:1788511705|4:z_c0|92:Mi4xcEtMU05RQUFBQUJGeFJrNExyclRIQ1lBQUFCZ0FsVk4yZE9IYXdCdHRJVE1nZFB2SmFmUWNfWUU4VjdPZEQ3N1FR|2600bffb992bdbf5780fd9b143b7c70868a22da84a3727143bf0261f0368a3cb;__zse_ck=005_4vIbXwufkAfY8ETDMKXkyV8YJoi8Ec5G9anErLOg1vA/pt=SWXXnnqWxglFIxhVARpgXlvBJkAElwDbJsPA19LgsETV0RtfxShiGRFt8Wqd2D=BqYW4PEFK1pfwUdg9K-3aPXnKVpYr0DVQtKUzKBTHAx2ZPVLkL04qXbiNE3datF5DRFVCZzXUqsQq1IviMVAaY/Bl5Hytj8u+oxnbOVaZx7Bb/lIHJSdf/HRH97UhhsZ+6R7jSFhISqM3lV/L+p',  # 请填入你的 cookie
         }
     
     def set_cookie(self, cookie: str):
@@ -77,19 +77,33 @@ class ZhihuBatchQuery:
             # 首页请求
             url = f"{self.base_url}?limit={self.limit}&desktop=true&ws_qiangzhisafe=0"
         
-        try:
-            response = requests.get(url, headers=self.headers, timeout=30)
-            response.raise_for_status()
-            return response.json()
-        except requests.RequestException as e:
-            print(f"请求失败: {e}")
-            if hasattr(e, 'response') and e.response is not None:
-                print(f"状态码: {e.response.status_code}")
-                print(f"响应内容: {e.response.text[:500]}")
-            return None
-        except json.JSONDecodeError as e:
-            print(f"JSON 解析失败: {e}")
-            return None
+        # 失败重试：最多 3 次，逐步增加等待时间
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = requests.get(url, headers=self.headers, timeout=30)
+                response.raise_for_status()
+                return response.json()
+            except (requests.exceptions.SSLError, requests.exceptions.ConnectionError) as e:
+                # SSL/连接错误：知乎服务端会偶发断开，等待后重试
+                wait_time = 2 ** attempt  # 1, 2, 4 秒
+                print(f"网络错误 (尝试 {attempt + 1}/{max_retries}): {type(e).__name__}")
+                print(f"  等待 {wait_time} 秒后重试...")
+                if attempt < max_retries - 1:
+                    time.sleep(wait_time)
+                else:
+                    print(f"  重试次数用尽，放弃")
+                    return None
+            except requests.RequestException as e:
+                print(f"请求失败: {e}")
+                if hasattr(e, 'response') and e.response is not None:
+                    print(f"状态码: {e.response.status_code}")
+                    print(f"响应内容: {e.response.text[:500]}")
+                return None
+            except json.JSONDecodeError as e:
+                print(f"JSON 解析失败: {e}")
+                return None
+        return None
     
     def extract_articles(self, data: Dict) -> List[Dict]:
         """

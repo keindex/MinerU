@@ -297,7 +297,6 @@ def main():
 
     book_prefix = args.book or os.path.splitext(merged_name)[0]
     # column 格式已废弃，不再使用
-    column = ""
     section_info = split_mod.split_document(
         merged_path,
         sections_dir,
@@ -318,7 +317,7 @@ def main():
     print("\n" + "=" * 60)
     print("步骤 4/5: 生成 index.md 目录")
     print("=" * 60)
-    generate_index(args.out_root, sections_dir, section_info, column)
+    generate_index(args.out_root, sections_dir, section_info, book_prefix)
 
     # ---------- 步骤 5: 检查并补全缺失章节 ----------
     print("\n" + "=" * 60)
@@ -327,18 +326,21 @@ def main():
     print(f"  DEBUG: section_info length = {len(section_info)}")
     if section_info:
         print(f"  DEBUG: first entry = {section_info[0]}")
-    missing = find_missing_sections(merged_path, sections_dir, section_info)
-    if missing:
-        created = extract_and_create_missing_sections(merged_path, sections_dir, missing, args.book, "")
-        print(f"  补全完成: 新增 {created} 个节文件")
-        # 重新生成 index.md 包含新增的节
-        # 重新读取 sections 目录获取完整列表
-        import glob
-        all_md = glob.glob(os.path.join(sections_dir, "*.md"))
-        # 这里简化处理：重新运行 generate_index 需要完整的 section_info
-        # 暂时跳过，用户可手动重跑或后续优化
+    if args.split_level >= 2:
+        missing = find_missing_sections(merged_path, sections_dir, section_info)
+        if missing:
+            created = extract_and_create_missing_sections(merged_path, sections_dir, missing, args.book, "")
+            print(f"  补全完成: 新增 {created} 个节文件")
+            # 重新生成 index.md 包含新增的节
+            # 重新读取 sections 目录获取完整列表
+            import glob
+            all_md = glob.glob(os.path.join(sections_dir, "*.md"))
+            # 这里简化处理：重新运行 generate_index 需要完整的 section_info
+            # 暂时跳过，用户可手动重跑或后续优化
+        else:
+            print("  无需补全")
     else:
-        print("  无需补全")
+        print("  章级模式不执行小节缺失补全")
 
     print("\n" + "=" * 60)
     print("全流程完成!")

@@ -1,3 +1,3 @@
 /.venv
-/archive/*
-/output/*
+/archive/
+/output/

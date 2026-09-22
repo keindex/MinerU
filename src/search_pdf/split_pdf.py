@@ -37,8 +37,12 @@ def split_pdf(input_path: str, output_dir: str, pages_per_part: int = 200):
     num_parts = (total_pages + pages_per_part - 1) // pages_per_part
     print(f"   将拆分成 {num_parts} 份（每份 {pages_per_part} 页）")
     
-    # 获取基础文件名（不含扩展名）
+    # 获取基础文件名（不含扩展名），并截断以避免路径过长
     base_name = os.path.splitext(os.path.basename(input_path))[0]
+    # 限制基础文件名长度，避免 Windows 路径长度限制 (260 字符)
+    max_base_len = 100
+    if len(base_name) > max_base_len:
+        base_name = base_name[:max_base_len]
     
     # 拆分
     for i in range(num_parts):
@@ -68,8 +72,8 @@ def split_pdf(input_path: str, output_dir: str, pages_per_part: int = 200):
 
 def main():
     # 配置
-    pdfs_dir = r"c:\Users\admin\MinerU\pdfs"
-    output_base_dir = r"c:\Users\admin\MinerU\pdfs_split"
+    pdfs_dir = r"c:\Users\yangj\dev\MinerU\pdfs"
+    output_base_dir = r"c:\Users\yangj\dev\MinerU\pdfs_split"
     pages_per_part = 200
     
     # 获取所有 PDF 文件
@@ -88,15 +92,12 @@ def main():
     for pdf_file in sorted(pdf_files):
         input_path = os.path.join(pdfs_dir, pdf_file)
         
-        # 为每个 PDF 创建子目录
-        base_name = os.path.splitext(pdf_file)[0]
-        output_dir = os.path.join(output_base_dir, base_name)
         
         print(f"\n{'='*60}")
         print(f"📚 处理: {pdf_file}")
         print(f"{'='*60}")
         
-        split_pdf(input_path, output_dir, pages_per_part)
+        split_pdf(input_path, output_base_dir, pages_per_part)
     
     print(f"\n{'='*60}")
     print("🎉 全部完成！")

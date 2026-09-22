@@ -93,8 +93,20 @@ def build_frontmatter(frontmatter: dict) -> str:
     return "\n".join(lines)
 
 
-def prepare_file(file_path: Path, headers: dict) -> tuple:
-    """预解析文件：提取 url 和 article_id，返回 (file_path, result_dict)"""
+def visible_text_length(text: str) -> int:
+    """统计正文可见文本长度，去掉 Markdown/HTML/空白后的字符数。"""
+    cleaned = text or ""
+    cleaned = re.sub(r'!\[[^\]]*\]\([^\)]*\)', '', cleaned)
+    cleaned = re.sub(r'\[[^\]]+\]\([^\)]*\)', '', cleaned)
+    cleaned = re.sub(r'<[^>]+>', '', cleaned)
+    cleaned = re.sub(r'`+', '', cleaned)
+    cleaned = re.sub(r'[#>*_~\-\+=|\\/]+', '', cleaned)
+    cleaned = re.sub(r'\s+', '', cleaned)
+    return len(cleaned)
+
+
+def prepare_file(file_path: Path, headers: dict, min_chars: int = 100) -> tuple:
+    """预解析文件：提取 url 和 article_id，并记录正文长度；小于阈值则视为短文。"""
     result = {
         'file': str(file_path),
         'rel_path': str(file_path.relative_to(file_path.anchor)),
@@ -102,7 +114,10 @@ def prepare_file(file_path: Path, headers: dict) -> tuple:
         'article_id': None,
         'url': None,
         'deleted': False,
-        'error': None
+        'error': None,
+        'body_chars': 0,
+        'too_short': False,
+        'min_chars': min_chars,
     }
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
@@ -125,6 +140,8 @@ def prepare_file(file_path: Path, headers: dict) -> tuple:
     result['article_id'] = article_id
     result['frontmatter'] = frontmatter
     result['body'] = body
+    result['body_chars'] = visible_text_length(body)
+    result['too_short'] = result['body_chars'] < min_chars
     return file_path, result
 
 
@@ -141,11 +158,24 @@ def delete_article(article_id: str, cookie: str, xsrf_token: str) -> tuple:
         return None, str(e)
 
 
-def process_with_delay(args_tuple, cookie: str, xsrf: str, delay: float) -> dict:
-    """带延迟的单文件处理函数（含删除 API 调用 + 写回文件）"""
+def process_with_delay(args_tuple, cookie: str, xsrf: str, delay: float, min_chars: int = 100) -> dict:
+    """带延迟的单文件处理函数（含删除 API 调用 + 写回文件）；正文少于 min_chars 的文章直接删除本地文件。"""
     file_path, prep_result = args_tuple
 
     if prep_result['error']:
+        return prep_result
+
+    # 规定：字数少于 100 的文章必须删除
+    if prep_result.get('too_short', False):
+        prep_result['deleted'] = True
+        prep_result['success'] = True
+        prep_result['error'] = None
+        try:
+            if file_path.exists():
+                file_path.unlink()
+        except Exception as e:
+            prep_result['error'] = f"删除本地短文失败: {e}"
+            prep_result['success'] = False
         return prep_result
 
     article_id = prep_result['article_id']
@@ -205,6 +235,7 @@ def main():
     parser.add_argument("--workers", type=int, default=5, help="并发线程数，默认 5")
     parser.add_argument("--dry-run", action="store_true", help="试运行，不实际删除文章和修改文件")
     parser.add_argument("--pattern", default="*.md", help="文件匹配模式，默认 *.md")
+    parser.add_argument("--min-chars", type=int, default=100, help="删除正文字数少于该值的文章，默认 100")
     args = parser.parse_args()
 
     target_dir = Path(args.dir)
@@ -229,7 +260,7 @@ def main():
     pre_results = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as executor:
         for future in concurrent.futures.as_completed(
-            {executor.submit(prepare_file, f, {}): f for f in md_files}
+            {executor.submit(prepare_file, f, {}, args.min_chars): f for f in md_files}
         ):
             _, result = future.result()
             pre_results.append(result)
@@ -242,7 +273,10 @@ def main():
             print(f"[{i}/{total}] {rel}  -> 错误: {result['error']}")
             fail_count[0] += 1
         else:
-            print(f"[{i}/{total}] {rel}  -> 文章 ID: {result['article_id']}")
+            if result.get('too_short'):
+                print(f"[{i}/{total}] {rel}  -> 短文删除（{result['body_chars']} 字，阈值 {args.min_chars}）")
+            else:
+                print(f"[{i}/{total}] {rel}  -> 文章 ID: {result['article_id']}（{result['body_chars']} 字）")
             success_count[0] += 1
 
     if args.dry_run:
@@ -258,7 +292,7 @@ def main():
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as executor:
         futures = []
         for i, (fp, r) in enumerate(task_args):
-            future = executor.submit(process_with_delay, (fp, r), args.cookie, xsrf, args.delay)
+            future = executor.submit(process_with_delay, (fp, r), args.cookie, xsrf, args.delay, args.min_chars)
             if i > 0:
                 time.sleep(stagger)
             futures.append(future)

@@ -42,20 +42,28 @@ except (AttributeError, ValueError):
 
 # 缺失的章标题 -> 章名 (从目录页人工补全; 用于标题缺失的文档)
 MISSING_CHAPTER_TITLES = {
-    3: "第 3 章 势",
-    5: "第 5 章 静磁学",
-    7: "第 7 章 电动力学",
-    9: "第 9 章 电磁波",
-    10: "第 10 章 势与场",
-    11: "第 11 章 辐射",
+    # 路径里亚《统计力学》(第三版) 的缺失章标题
+    3: "第 3 章 正则系综",
+    4: "第 4 章 巨正则系综",
+    5: "第 5 章 量子统计学的表述形式",
+    7: "第 7 章 理想玻色系统",
+    8: "第 8 章 理想费米系统",
+    9: "第 9 章 早期宇宙热力学",
+    10: "第 10 章 相互作用系统的统计力学: 集团展开法",
+    11: "第 11 章 相互作用系统的统计力学: 量子化场方法",
+    12: "第 12 章 相变: 临界性、普适性和标度性",
+    13: "第 13 章 相变: 各种模型的严格 (或近严格) 结果",
+    14: "第 14 章 重正化群方法",
+    15: "第 15 章 涨落和非平衡统计力学",
+    16: "第 16 章 蒙特卡罗方法",
 }
 
 # 章标题：支持 "第X章 标题"、"第X章标题"（无空格）、"第X章"（无标题）
 CHAPTER_RE = re.compile(r"^#{1,2}\s+(第\s*([0-9一二三四五六七八九十]+)\s*章)\s*(.*)$")
 # 补充习题标题 ("第1章补充习题"), 不应被当作章标题
 REVIEW_RE = re.compile(r"^##\s*第\s*[0-9一二三四五六七八九十]+\s*章\s*补充习题")
-SECTION_RE = re.compile(r"^#{1,2}\s+([IVXLCDM]+|\d+)\.(\d+)\s+(.+)$")
-SUBSECTION_RE = re.compile(r"^##\s+([IVXLCDM]+|\d+)\.(\d+)\.(\d+)\s+(.+)$")
+SECTION_RE = re.compile(r"^#{1,2}\s+([IVXLCDM]+|\d+)\.(\d+)\.?\s+(.+)$")
+SUBSECTION_RE = re.compile(r"^##\s+([IVXLCDM]+|\d+)\.(\d+)\.(\d+)\.?\s+(.+)$")
 # 连字符节号 (如费曼 1-1, 2-3): 一级标题章(# 章名) + 连字符节(## N-M 节名)
 # 支持 "1-1"、"1- 1"（数字与连字符间有空格）、"[19] 1-4"（带页码前缀）等格式
 SECTION_DASH_RE = re.compile(r"^##\s*(?:\[\d+\]\s*)?(\d+)\s*-\s*(\d+)\s+(.+)$")
@@ -65,6 +73,8 @@ SECTION_SUPP_DASH_RE = re.compile(r"^##\s*(\d+)\s*-\s*S(\d+)\s+(.+)$")
 SECTION_FEYNMAN_RE = re.compile(r"^##\s*§\s*(\d+)\s*-\s*(\d+)\s+(.+)$")
 # 朗道 § 格式节号: ## §N 节名 (连续编号，不分章)
 SECTION_LANDAU_RE = re.compile(r"^##\s*§\s*(\d+)\s+(.+)$")
+# 单章书籍常用的一级节格式: ## 1. 标题 / ## §1. 标题
+SECTION_SIMPLE_NUM_RE = re.compile(r"^##\s*(?:§\s*)?(\d+)\.\s+(.+)$")
 # 科恩塔诺吉格式：## §A. 标题, ## §B. 标题 (字母编号节)
 SECTION_COHENA_RE = re.compile(r"^##\s*§\s*([A-Z])\.\s+(.+)$")
 # 科恩塔诺吉格式：## 1. 标题, ## a. 标题 (数字/字母小节)
@@ -152,6 +162,8 @@ def clean_section_title(title: str) -> str:
     title = re.sub(r"^§\s*\d+\s+", "", title)
     # 移除标准数字节号前缀（1.1、1.2、I.1、II.2 等）
     title = re.sub(r"^([IVXLCDM]+|\d+)(\.\d+)+\s+", "", title)
+    # 移除单层数字节号前缀（1. 标题）
+    title = re.sub(r"^\d+\.\s+", "", title)
     # 移除字母节号前缀（A.、B. 等）
     title = re.sub(r"^[A-Z]\.\s+", "", title)
     # 移除连字符节号前缀（1-1、1- 1、2-3 等，非 § 格式）
@@ -375,6 +387,11 @@ def split_document(input_file, output_dir, split_level=2, book_name="", skip_fro
                 headers.append((i, "sec", f"§{sec_num}",
                                 (sec_num, m.group(2))))
                 continue
+            m = SECTION_SIMPLE_NUM_RE.match(s)
+            if m:
+                headers.append((i, "sec", f"S{m.group(1)}",
+                                (int(m.group(1)), m.group(2))))
+                continue
             # 科恩塔诺吉格式节：## §A. 标题, ## §B. 标题 (字母编号)
             m = SECTION_COHENA_RE.match(s)
             if m:
@@ -504,8 +521,9 @@ def split_document(input_file, output_dir, split_level=2, book_name="", skip_fro
         else:
             # 标准中文章格式
             # 收集所有显式章和所有节标题的章号, 确定每章的起止
+            explicit_ch_nums = [h[2] for h in headers if h[1] == "ch"]
             all_ch_nums = sorted(set(
-                [h[2] for h in headers if h[1] == "ch"] + [h[3][0] for h in headers if h[1] == "sec"]
+                explicit_ch_nums or [h[3][0] for h in headers if h[1] == "sec"]
             ))
             # 每章起点: 显式章标题优先, 否则该章第一个节标题
             bound_map = {}  # ch_num -> (start_line, ch_title)
@@ -582,9 +600,21 @@ def split_document(input_file, output_dir, split_level=2, book_name="", skip_fro
     os.makedirs(output_dir, exist_ok=True)
     written = 0
 
-    if split_level >= 2:
+    if split_level == 1:
+        for ch_start, ch_end, ch_num, ch_title in chapters:
+            safe_title = sanitize(ch_title)
+            chapter_fn = f"{ch_num} {safe_title}.md"
+            content = "\n".join(body_lines[ch_start:ch_end])
+            with open(os.path.join(output_dir, chapter_fn), "w", encoding="utf-8") as f:
+                f.write(content)
+            written += 1
+            print(f"  [章] {chapter_fn} ({ch_end - ch_start} 行)")
+    elif split_level >= 2:
         for entry in sections:
             ch_num, ch_title, sec_num, sec_title, sub_num, sub_title, sec_start, _sec_end_v, sec_end = entry
+            display_sec_num = sec_num
+            if isinstance(sec_num, str) and sec_num.startswith("S"):
+                display_sec_num = f"{ch_num}-{sec_num[1:]}"
             # 清理标题，移除章节号前缀
             clean_sec_title = clean_section_title(sec_title)
             clean_sub_title = clean_section_title(sub_title) if sub_title else None
@@ -593,14 +623,14 @@ def split_document(input_file, output_dir, split_level=2, book_name="", skip_fro
                 # 小节文件: {sec_num} {sub_num} {sub_title}.md
                 safe_sec = sanitize(clean_sec_title)
                 safe_sub = sanitize(clean_sub_title)
-                sec_fn = f"{sec_num} {safe_sec}-{sub_num} {safe_sub}.md"
+                sec_fn = f"{display_sec_num} {safe_sec}-{sub_num} {safe_sub}.md"
                 content = "\n".join(body_lines[sec_start:sec_end])
                 # 清理内容中的标题前缀
                 content = clean_content_headers(content, clean_sec_title, clean_sub_title)
             else:
                 safe_sec = sanitize(clean_sec_title)
                 # 节文件: {sec_num} {sec_title}.md  (如 1.1 Coulomb's_Law.md)
-                sec_fn = f"{sec_num} {safe_sec}.md"
+                sec_fn = f"{display_sec_num} {safe_sec}.md"
                 content = "\n".join(body_lines[sec_start:sec_end])
                 # 清理内容中的标题前缀
                 content = clean_content_headers(content, clean_sec_title)
@@ -612,9 +642,17 @@ def split_document(input_file, output_dir, split_level=2, book_name="", skip_fro
     print(f"\n完成! 共创建 {written} 个文件于 {output_dir}")
     # 返回章节信息列表，供 pipeline 生成 index.md
     section_info = []
-    if split_level >= 2:
+    if split_level == 1:
+        for ch_start, ch_end, ch_num, ch_title in chapters:
+            safe_title = sanitize(ch_title)
+            fn = f"{ch_num} {safe_title}.md"
+            section_info.append((str(ch_num), ch_title, fn, ch_num, ch_title))
+    elif split_level >= 2:
         for entry in sections:
             ch_num, ch_title, sec_num, sec_title, sub_num, sub_title, sec_start, _sec_end_v, sec_end = entry
+            display_sec_num = sec_num
+            if isinstance(sec_num, str) and sec_num.startswith("S"):
+                display_sec_num = f"{ch_num}-{sec_num[1:]}"
             # 清理标题，移除章节号前缀
             clean_sec_title = clean_section_title(sec_title)
             clean_sub_title = clean_section_title(sub_title) if sub_title else None
@@ -622,12 +660,12 @@ def split_document(input_file, output_dir, split_level=2, book_name="", skip_fro
             if sub_num:
                 safe_sec = sanitize(clean_sec_title)
                 safe_sub = sanitize(clean_sub_title)
-                fn = f"{sec_num} {safe_sec}-{sub_num} {safe_sub}.md"
-                section_info.append((sec_num, clean_sec_title, fn, ch_num, ch_title))
+                fn = f"{display_sec_num} {safe_sec}-{sub_num} {safe_sub}.md"
+                section_info.append((display_sec_num, clean_sec_title, fn, ch_num, ch_title))
             else:
                 safe_sec = sanitize(clean_sec_title)
-                fn = f"{sec_num} {safe_sec}.md"
-                section_info.append((sec_num, clean_sec_title, fn, ch_num, ch_title))
+                fn = f"{display_sec_num} {safe_sec}.md"
+                section_info.append((display_sec_num, clean_sec_title, fn, ch_num, ch_title))
     return section_info
 
 

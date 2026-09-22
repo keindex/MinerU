@@ -61,6 +61,15 @@ folderC/full.md   ──┘            │    ├── 1.2 Electric_Field.md
 - "合并 full.md" / "合并 markdown" / "把几个分卷文件夹变成一个完整的文档"
 - "拆成章节" / "拆分" / "按章节分割"
 - "加上元数据" / "写 frontmatter" / "给 md 加 title"
+- "清理短文" / "删掉字数少于 100 的文章" / "处理知乎文章中的超短内容"
+
+## 清理规则
+
+在文章清理阶段，若正文可见文本少于 100 字，必须直接删除该文章条目，不保留在最终整理结果中。
+
+- 判定标准：以正文可见文本长度计算，去除 Markdown 语法、链接、图片标记、HTML 标签和空白后统计字符数。
+- 阈值：`100` 字，低于此值一律视为短文并删除。
+- 处理方式：删除对应本地 `.md` 文件，并移除其 `url` frontmatter 及相关引用。
 
 ## 目录结构
 
@@ -132,6 +141,17 @@ python src/process_md/split_sections.py \
 python src/process_md/add_frontmatter.py \
     --dir "processed/{book}/sections"
 ```
+
+若当前内容来自知乎文章清理流程，执行完 frontmatter 之后，还应按规则清理正文少于 100 字的条目：
+
+```bash
+python src/zhihu/delete_zhihu_articles_from_md.py \
+    --dir "processed/{book}/sections" \
+    --cookie "<your_cookie_here>" \
+    --min-chars 100
+```
+
+> 约定：正文可见文本少于 100 字的文章必须删除，不保留在最终整理结果里。
 
 **步骤 4 — 生成目录（`pipeline.py` 内置，通常无需单独调用）**：
 ```bash
@@ -218,6 +238,8 @@ title: "1.1.Coulomb's Law"
 3. **重复引用**：分卷间重复图片引用不影响结果（哈希命名去重）
 4. **LaTeX**：数学公式在拆分、加元数据过程中完整保留
 5. **幂等性**：frontmatter 步骤可安全重复执行，不产生重复字段
+6. **短文过滤**：任何正文可见文本少于 100 字的文章，一律删除，不保留在最终整理结果中
+6. **短文过滤**：任何正文可见文本少于 100 字的文章，一律删除，不保留在最终整理结果中
 6. **层级**：`sections/` 中的 `.md` 与 `sections/images/` 在同一层级，引用路径正确
 7. **页码清理**：MinerU 识别的 `full.md` 中，目录条目常带页码（如 `一些说明 30`）。`add_frontmatter.py` 提取 `title` 时可能将页码混入。处理后需检查并批量删除 `title` 末尾的数字页码（可用正则 `re.sub(r'\s+\d+$', '', title)` 清理）。
 
